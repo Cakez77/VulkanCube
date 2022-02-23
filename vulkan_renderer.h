@@ -457,6 +457,7 @@ bool init_vulkan(GLFWwindow *glfwWindow)
 
         for (uint32_t i = 0; i < vkcontext.scImgCount; i++)
         {
+            //HERE: Instead of using swapchain Image Views, prolly use other Image Views
             fbInfo.pAttachments = &vkcontext.scImgViews[i];
             VK_CHECK_FATAL(vkCreateFramebuffer(vkcontext.device, &fbInfo, 0, &vkcontext.framebuffers[i]));
         }
@@ -502,6 +503,8 @@ bool init_vulkan(GLFWwindow *glfwWindow)
         VK_CHECK_FATAL(vkCreateDescriptorSetLayout(vkcontext.device, &layoutInfo, 0, &vkcontext.setLayout));
     }
 
+    //HERE: This will need to be duplicated, line 506 - 655
+    // This could be a function create_pipeline(bool frontFaceCulling, ...)
     // Create Pipeline Layout
     {
         VkPushConstantRange pushConstant = {};
@@ -572,7 +575,7 @@ bool init_vulkan(GLFWwindow *glfwWindow)
 
         VkPipelineRasterizationStateCreateInfo rasterizationState = {};
         rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+        rasterizationState.cullMode = VK_CULL_MODE_FRONT_BIT;
         rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizationState.lineWidth = 1.0f;
@@ -672,12 +675,13 @@ bool init_vulkan(GLFWwindow *glfwWindow)
 
         VkDescriptorPoolCreateInfo poolInfo = {};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.maxSets = 1;
+        poolInfo.maxSets = 2;
         poolInfo.poolSizeCount = ArraySize(poolSizes);
         poolInfo.pPoolSizes = poolSizes;
         VK_CHECK_FATAL(vkCreateDescriptorPool(vkcontext.device, &poolInfo, 0, &vkcontext.descPool));
     }
 
+    //HERE: This would need to match the shaders used in the different pieplines, so two Sets
     // Allocate Descriptor Set (Pointers to Memory where the Buffers are)
     {
         // Allocation
@@ -791,19 +795,21 @@ void render_scene_vulkan()
     vkCmdSetViewport(cmd, 0, 1, &viewport);
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, vkcontext.pipeline);
-
-    VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(cmd, 0, 1, &vkcontext.vertexBuffer.buffer, offsets);
-    vkCmdBindIndexBuffer(cmd, vkcontext.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-
+    //HERE: You would bind frontFacePipeline -> vkCmdDrawIndexed
+    //HERE: You would bind backFacePipeline -> vkCmdDrawIndexed
+    //HERE: You would bind different Descriptor -> bind finalPipeline -> vkCmdDrawIndexed
     // Render Loop
     {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, vkcontext.pipeline);
+
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(cmd, 0, 1, &vkcontext.vertexBuffer.buffer, offsets);
+        vkCmdBindIndexBuffer(cmd, vkcontext.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, vkcontext.pipeLayout,
                                 0, 1, &vkcontext.descSet, 0, 0);
 
         vkCmdDrawIndexed(cmd, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
-        // vkCmdDraw(cmd, vertices.size(), 1, 0, 0);
     }
 
     vkCmdEndRenderPass(cmd);
